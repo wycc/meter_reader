@@ -1,5 +1,5 @@
 [
-{ "Room":"A-02-01", "Type":"energy_meter", "Station":"A-1F-127.0.0.1", "HTTP_Port":"8002", "TCP_Port":"7002", "Address":"0x41" },
-{ "Room":"A-02-02", "Type":"energy_meter", "Station":"A-1F-127.0.0.1", "HTTP_Port":"8002", "TCP_Port":"7002", "Address":"0x41" },
-{ "Room":"A-02-03", "Type":"energy_meter", "Station":"A-1F-127.0.0.1", "HTTP_Port":"8002", "TCP_Port":"7002", "Address":"0x41" }
+{ "Room":"A-01-04", "Type":"water_meter", "Station":"A-1F-127.0.0.1", "HTTP_Port":"8001", "TCP_Port":"7001", "Address":"1" },
+{ "Room":"A-01-05", "Type":"water_meter", "Station":"A-1F-127.0.0.1", "HTTP_Port":"8001", "TCP_Port":"7001", "Address":"1" },
+{ "Room":"A-01-06", "Type":"water_meter", "Station":"A-1F-127.0.0.1", "HTTP_Port":"8001", "TCP_Port":"7001", "Address":"1" }
 ]
