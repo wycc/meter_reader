@@ -1,0 +1,5 @@
+[
+{ "Room":"A-02-01", "Type":"energy_meter", "Station":"A-1F-127.0.0.1", "HTTP_Port":"8002", "TCP_Port":"7002", "Address":"0x41" },
+{ "Room":"A-02-02", "Type":"energy_meter", "Station":"A-1F-127.0.0.1", "HTTP_Port":"8002", "TCP_Port":"7002", "Address":"0x41" },
+{ "Room":"A-02-03", "Type":"energy_meter", "Station":"A-1F-127.0.0.1", "HTTP_Port":"8002", "TCP_Port":"7002", "Address":"0x41" }
+]
