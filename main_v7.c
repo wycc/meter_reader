@@ -25,6 +25,10 @@
 // https://docs.oracle.com/cd/E19455-01/806-5257/sync-24727/index.html
 #include "readconfig_v7.h"
 
+#define DB_SUCCESS  10
+#define HTTP_UNLOCK 11
+#define DB_FAILURE  12
+
 static sig_atomic_t s_received_signal = 0;
 
 struct mg_mgr mgr;
@@ -42,8 +46,8 @@ int has_storage_full = 0;
 int64_t head_line = 0;
 int64_t tail_line = 0;
 int64_t total_lines_of_data = 0;
-static const char *s_http_port = "8002";
-static const char *s_tcp_port = "7002";
+static const char *s_http_port = "9001";
+static const char *s_tcp_port = "9002";
 
 struct timeval start, stop;
 
@@ -262,7 +266,7 @@ static void handle_http_request_scrape_data(struct mg_connection *nc, struct htt
   // mg_get_http_var(&hm->body, "n2", n2, sizeof(n2));
   /* Compute the result and send it back as a JSON object */
   // result = strtod(n1, NULL) + strtod(n2, NULL);
-
+ 
   /* Send headers */
   mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
 
@@ -276,7 +280,6 @@ static void handle_http_request_scrape_data(struct mg_connection *nc, struct htt
 
     char buffer[MAX_BYTE_PER_LINE];
     fread(buffer,1,MAX_BYTE_PER_LINE,data_file);
-    clean_tail_line();
 
     mg_printf_http_chunk(nc, "%s", buffer);
   }
@@ -284,10 +287,23 @@ static void handle_http_request_scrape_data(struct mg_connection *nc, struct htt
 }
 
 static void handle_http_request_confirm(struct mg_connection *nc, struct http_message *hm) {
-  (void) hm;
+  // (void) hm;
+  char ret[10];
+  int result;
+  mg_get_http_var(&hm->body, "ret", ret, sizeof(ret));
+  result = strtod(ret, NULL);
+  if (result == DB_SUCCESS) {
+    clean_tail_line();
+    printf("DB SUCCESS: clean one tail line\n");
+  } else if (result == DB_FAILURE) {
+    printf("DB FAILURE: don't clean tail line\n");
+  } else if (result == HTTP_UNLOCK) {
+    printf("HTTP_UNLOCK: all data lines have been scraped\n");
+  }
+
   http_lock.lock = 0;
-  gettimeofday(&http_lock.lockTime,NULL);
   mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
+  mg_printf_http_chunk(nc, "%s", "OK");
   mg_send_http_chunk(nc, "", 0); /* Send empty chunk, the end of response */
 }
 
@@ -299,17 +315,21 @@ static void ev_restful_handler(struct mg_connection *nc, int ev, void *ev_data) 
     case MG_EV_ACCEPT:
       if (!worker_lock.lock) {
         http_lock.lock = 1;
-        printf("http post event accept\n");
+	if (worker_lock.lock) {
+            http_lock.lock = 0;
+	}
         gettimeofday(&http_lock.lockTime,NULL);
       }
       break;
     case MG_EV_HTTP_REQUEST:
-      if (mg_vcmp(&hm->uri, "/api/total_lines_of_data") == 0) {
-        handle_http_request_get_line_number(nc, hm);
-      } else if (mg_vcmp(&hm->uri, "/api/scrape") == 0) {
-        handle_http_request_scrape_data(nc, hm); /* Handle RESTful call */
-      } else if (mg_vcmp(&hm->uri, "/api/confirm") == 0) {
-        handle_http_request_confirm(nc, hm);
+      if (http_lock.lock) {
+        if (mg_vcmp(&hm->uri, "/api/total_lines_of_data") == 0) {
+          handle_http_request_get_line_number(nc, hm);
+        } else if (mg_vcmp(&hm->uri, "/api/scrape") == 0) {
+          handle_http_request_scrape_data(nc, hm); /* Handle RESTful call */
+        } else if (mg_vcmp(&hm->uri, "/api/confirm") == 0) {
+          handle_http_request_confirm(nc, hm);
+        }
       }
       break;
     case MG_EV_CLOSE:
@@ -328,7 +348,7 @@ void *worker(void* param) {
     if (has_config && ((int)start.tv_sec+start.tv_usec/1000000.0) + DATA_PUBLISH_INTERVAL/1000000.0 < ((int)stop.tv_sec+stop.tv_usec/1000000.0)) {
       // gettimeofday(&begin,NULL);
       worker_lock.lock = 1;
-      if (!http_lock.lock) {
+      if (!http_lock.lock && has_config) {
         srand(time(NULL));
         int i;
         for (i=0; i<meter_len; i++) {
@@ -365,13 +385,12 @@ void *worker(void* param) {
             total_lines_of_data++;
           }
         }
+        worker_lock.lock = 0;
       } else {
         if ( stop.tv_sec - http_lock.lockTime.tv_sec > MAX_HTTP_LOCK_SEC) {
           http_lock.lock = 0;
-          gettimeofday(&http_lock.lockTime, NULL);
         }
       }
-      worker_lock.lock = 0;
     }
 
     usleep(500*1000);
@@ -397,16 +416,16 @@ int main(void) {
 
   if( access( data_file_name, F_OK ) == -1 ) {
     allocate_file_size();
-    data_file = fopen(data_file_name, "r, a+");
+    data_file = fopen(data_file_name, "r+");
   } else {
-    data_file = fopen(data_file_name, "r, a+");
+    data_file = fopen(data_file_name, "r+");
 
     // head_line for write data, tail for read data
     if ( get_head_tail_in_data_file(&head_line, &tail_line) == -1 ) {
       get_head_tail_in_full_data_file(data_file, &head_line, &tail_line, &total_lines_of_data);
     }
-    printf("total_lines_of_data:%lld\n", total_lines_of_data);
-    printf("head_line:%lld, tail_line:%lld\n", head_line, tail_line);
+    printf("total_lines_of_data:%ld\n", total_lines_of_data);
+    printf("head_line:%ld, tail_line:%ld\n", head_line, tail_line);
   }
   worker_lock.lock = 0;
   gettimeofday(&worker_lock.lockTime,NULL);

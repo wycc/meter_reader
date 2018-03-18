@@ -4,8 +4,8 @@
 #define OCTAL 10
 #define HEX 16
 
-#define DATA_PUBLISH_INTERVAL 15* 1000 * 1000 // usec
-#define MAX_HTTP_LOCK_SEC     300
+#define DATA_PUBLISH_INTERVAL 10 * 1000 * 1000 // usec
+#define MAX_HTTP_LOCK_SEC     5
 
 #define MAX_BYTE_PER_LINE     150
 #define DATA_FILE_SIZE_MB 1
